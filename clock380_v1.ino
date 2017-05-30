@@ -256,8 +256,8 @@ void ShowDots(uint8_t EN, uint8_t N, uint16_t bright)
 { 
   switch (N)  
   {
-    case 1: { pwmController1.setChannelPWM(7, bright); break; }
-    case 2: { pwmController1.setChannelPWM(8, bright); break; }
+    case 1: { pwmController1.setChannelPWM(7, bright); pwmController1.setChannelPWM(8, bright_off); break; }
+    case 2: { pwmController1.setChannelPWM(8, bright); pwmController1.setChannelPWM(7, bright_off); break; }
     case 3: { pwmController1.setChannelPWM(7, bright); pwmController1.setChannelPWM(8, bright); break; }
   }
     
