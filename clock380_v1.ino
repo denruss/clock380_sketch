@@ -1,5 +1,6 @@
 /*
- Скетч для Clock380
+Скетч для Clock380
+https://geektimes.ru/post/289389/
  */
 
 #include <Wire.h>
