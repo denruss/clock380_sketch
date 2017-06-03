@@ -15,6 +15,7 @@
 char ssid[] = "***";  //  your network SSID (name)
 char pass[] = "***";       // your network password
 
+
 WiFiUDP ntpUDP;
 
 TaskManager taskManager;
@@ -39,13 +40,13 @@ float pwmFrequency = 1526.0; //supports 24Hz to 1526Hz
 
 uint16_t lux_level[4] = {2, 10, 22, 64}; // освещенность ночью....освещенность днём
 
-uint16_t threshold = 1;   // порог переключения
+uint16_t threshold = 0;   // порог переключения
 
 uint16_t bright_level[5] = {2, 16, 32, 64, 128}; // яркость ночью....яркость днём 
 
 uint16_t bright_off = 4096;   // выкл
 
-uint16_t comp = 3;   // компенсация свечения точек
+uint16_t comp = 4;   // компенсация свечения точек
 
 RtcDateTime now, prev;
 
@@ -68,14 +69,11 @@ void setup()
 
     timeClient.begin();
     
-    RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
-
     if (!Rtc.IsDateTimeValid()) 
     {
-
         Serial.println("RTC lost confidence in the DateTime!");
 
-        Rtc.SetDateTime(compiled);
+        Rtc.SetDateTime(0);
     }
 
     if (!Rtc.GetIsRunning())
@@ -103,9 +101,8 @@ void setup()
 
 }
 
-void UpdateDisplay(uint32_t deltaTime)
+uint16_t GetBright(void)
 {
-  static uint8_t dot = 1;
   static uint16_t bright = bright_level[3];
   uint16_t lux = lightMeter.readLightLevel(); //
   
@@ -115,13 +112,6 @@ void UpdateDisplay(uint32_t deltaTime)
   if ((lux > lux_level[1] + threshold) && (lux < lux_level[2] - threshold)) bright = bright_level[2];
   if ((lux > lux_level[2] + threshold) && (lux < lux_level[3] - threshold)) bright = bright_level[3];
   if ((lux > lux_level[3] + threshold)) bright = bright_level[4];
-  
-  if ((now.Hour() >= 21) && (now.Hour() <= 23) || (now.Hour() >= 0) && (now.Hour() <= 5) ) ShowDots(1, 1, bright + comp); // с 21.00 до 6.00 не мигает двоеточие, а светится точка
-  else ShowDots(dot, 2, bright + comp);
-
-  if (dot == 1) dot = 0; else dot = 1;
-  
-  ShowTime(bright);
 
   Serial.print("Light: ");
   Serial.print(lux);
@@ -131,11 +121,28 @@ void UpdateDisplay(uint32_t deltaTime)
   Serial.print(bright);
   Serial.println(" ");
 
+  return bright;
+}
+
+
+void UpdateDisplay(uint32_t deltaTime)
+{
+  static uint8_t dot = 1;
+  uint16_t bright = GetBright();
+  
+  if ((now.Hour() >= 21) && (now.Hour() <= 23) || (now.Hour() >= 0) && (now.Hour() <= 5) ) ShowDots(1, 1, bright + comp); // с 21.00 до 6.00 не мигает двоеточие, а светится точка
+  else ShowDots(dot, 2, bright + comp);
+
+  if (dot == 1) dot = 0; else dot = 1;
+  
+  ShowTime(bright);
 }
 
 void SyncTime(uint32_t deltaTime)
 {
   unsigned long epoch;
+  uint16_t bright = GetBright();
+  uint8_t shift = 0;
   
   // We start by connecting to a WiFi network
   Serial.print("Connecting to ");
@@ -146,12 +153,24 @@ void SyncTime(uint32_t deltaTime)
   WiFi.begin(ssid, pass);
           
   // Wait for connection
-  for (int i = 0; i < 25; i++)
+  for (int i = 0; i < 20; i++)
   {
     if ( WiFi.status() != WL_CONNECTED ) {
-      delay ( 250 );
+      delay ( 500 );
       Serial.print ( "." );
-      delay ( 250 );
+
+      // сигнализируем что коннектимся
+      bright = GetBright();
+      switch (shift)
+        {
+          case 0: { ShowDots(0, 1, bright + comp); shift = 1; break; }
+          case 1: { ShowDots(1, 1, bright + comp); shift = 2; break; }
+          case 2: { ShowDots(1, 2, bright + comp); shift = 3; break; }
+          case 3: { ShowDots(1, 3, bright + comp); shift = 0; break; }
+
+        }
+      
+      delay ( 500 );
     }
   }
 
@@ -181,6 +200,17 @@ void SyncTime(uint32_t deltaTime)
          Serial.print("Connect, get time: \n");
          epoch = timeClient.getEpochTime();
          //timeClient.setTimeOffset(3);
+         
+         // сигнализируем тремя точками что получили время
+         bright = GetBright();
+         ShowDots(0, 1, bright + comp);
+         delay (500);
+         ShowDots(1, 3, bright + comp);
+         delay (500);
+         ShowDots(0, 1, bright + comp);
+         delay (500);
+         ShowDots(1, 3, bright + comp);         
+         delay (500);
               
          Rtc.SetDateTime(RtcDateTime(epoch));
     
