@@ -1,7 +1,16 @@
 /*
 Скетч для Clock380
 https://geektimes.ru/post/289389/
- */
+https://github.com/denruss/clock380
+
+Используемые библиотеки
+https://github.com/arduino-libraries/NTPClient  Version 3.1.0
+https://github.com/NachtRaveVL/PCA9685-Arduino  Version 1.2.9 (Important: With other versions may not work, or work incorrectly)
+https://github.com/Makuna/Rtc                   Version 2.0
+https://github.com/Makuna/Task                  Version 1.1.3
+https://github.com/claws/BH1750
+
+*/
 
 #include <Wire.h>
 #include <PCA9685.h>
@@ -11,7 +20,6 @@ https://geektimes.ru/post/289389/
 #include <WiFiUdp.h>
 #include <NTPClient.h>
 #include <Task.h>
-
 
 char ssid[] = "***";  //  your network SSID (name)
 char pass[] = "***";       // your network password
@@ -45,7 +53,7 @@ uint16_t threshold = 0;   // порог переключения
 
 uint16_t bright_level[5] = {2, 16, 32, 64, 128}; // яркость ночью....яркость днём 
 
-uint16_t bright_off = 4096;   // выкл
+uint16_t bright_off = 0;   // выкл
 
 uint16_t comp = 4;   // компенсация свечения точек
 
@@ -94,6 +102,9 @@ void setup()
     pwmController2.setPWMFrequency(pwmFrequency); //
 
     delay(30);
+
+    //Test();
+    
     lightMeter.readLightLevel(); //
     UpdateDisplay(0);
     SyncTime(0);
@@ -102,7 +113,7 @@ void setup()
 
 }
 
-uint16_t GetBright(void)
+uint16_t GetBright(uint8_t print)
 {
   static uint16_t bright = bright_level[3];
   uint16_t lux = lightMeter.readLightLevel(); //
@@ -113,14 +124,15 @@ uint16_t GetBright(void)
   if ((lux > lux_level[1] + threshold) && (lux < lux_level[2] - threshold)) bright = bright_level[2];
   if ((lux > lux_level[2] + threshold) && (lux < lux_level[3] - threshold)) bright = bright_level[3];
   if ((lux > lux_level[3] + threshold)) bright = bright_level[4];
+  if (print == 1) {
+    Serial.print("Light: ");
+    Serial.print(lux);
+    Serial.println(" lx");
 
-  Serial.print("Light: ");
-  Serial.print(lux);
-  Serial.println(" lx");
-
-  Serial.print("Bright value: ");
-  Serial.print(bright);
-  Serial.println(" ");
+    Serial.print("Bright value: ");
+    Serial.print(bright);
+    Serial.println(" ");
+  }
 
   return bright;
 }
@@ -129,7 +141,7 @@ uint16_t GetBright(void)
 void UpdateDisplay(uint32_t deltaTime)
 {
   static uint8_t dot = 1;
-  uint16_t bright = GetBright();
+  uint16_t bright = GetBright(1);
   
   if ((now.Hour() >= 21) && (now.Hour() <= 23) || (now.Hour() >= 0) && (now.Hour() <= 5) ) ShowDots(1, 1, bright + comp); // с 21.00 до 6.00 не мигает двоеточие, а светится точка
   else ShowDots(dot, 2, bright + comp);
@@ -142,7 +154,7 @@ void UpdateDisplay(uint32_t deltaTime)
 void SyncTime(uint32_t deltaTime)
 {
   unsigned long epoch;
-  uint16_t bright = GetBright();
+  uint16_t bright = GetBright(0);
   uint8_t shift = 0;
   
   // We start by connecting to a WiFi network
@@ -161,7 +173,7 @@ void SyncTime(uint32_t deltaTime)
       Serial.print ( "." );
 
       // сигнализируем что коннектимся
-      bright = GetBright();
+      bright = GetBright(0);
       switch (shift)
         {
           case 0: { ShowDots(0, 1, bright + comp); shift = 1; break; }
@@ -201,9 +213,13 @@ void SyncTime(uint32_t deltaTime)
          Serial.print("Connect, get time: \n");
          epoch = timeClient.getEpochTime();
          //timeClient.setTimeOffset(3);
+            
+         Rtc.SetDateTime(RtcDateTime(epoch));
+    
+         Serial.println(timeClient.getFormattedTime());
          
          // сигнализируем тремя точками что получили время
-         bright = GetBright();
+         bright = GetBright(0);
          ShowDots(0, 1, bright + comp);
          delay (500);
          ShowDots(1, 3, bright + comp);
@@ -212,10 +228,6 @@ void SyncTime(uint32_t deltaTime)
          delay (500);
          ShowDots(1, 3, bright + comp);         
          delay (500);
-              
-         Rtc.SetDateTime(RtcDateTime(epoch));
-    
-         Serial.println(timeClient.getFormattedTime());
   
          break;
        }
@@ -278,21 +290,39 @@ for (uint8_t i = 0; i < 7; i++) {
          case 2: { if (digits[i+digit*7] == 1) { pwmController2.setChannelPWM(connections[i + position*7], bright); }  else { pwmController2.setChannelPWM(connections[i + position*7], bright_off); }  break; } 
          case 3: { if (digits[i+digit*7] == 1) { pwmController2.setChannelPWM(connections[i + position*7], bright); }  else { pwmController2.setChannelPWM(connections[i + position*7], bright_off); }  break; } 
       }
- 
+        
   }
 
 }
 
+
 void ShowDots(uint8_t EN, uint8_t N, uint16_t bright)
 { 
+
   switch (N)  
   {
     case 1: { pwmController1.setChannelPWM(7, bright); pwmController1.setChannelPWM(8, bright_off); break; }
     case 2: { pwmController1.setChannelPWM(8, bright); pwmController1.setChannelPWM(7, bright_off); break; }
     case 3: { pwmController1.setChannelPWM(7, bright); pwmController1.setChannelPWM(8, bright); break; }
   }
+  
     
   if (EN == 0) { pwmController1.setChannelPWM(7, bright_off); pwmController1.setChannelPWM(8, bright_off); }
+
+}
+
+void Test(void)
+{
+  for (uint8_t i = 0; i < 9; i++) { 
+    ShowDigit(i, 0, bright_level[2]);
+    ShowDigit(i, 1, bright_level[2]);
+    ShowDigit(i, 2, bright_level[2]);
+    ShowDigit(i, 3, bright_level[2]);
+    delay(300);
+  }
+   // delay(300);
+
+   while(1);
 
 }
 
