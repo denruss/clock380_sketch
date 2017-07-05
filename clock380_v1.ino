@@ -21,6 +21,7 @@ https://github.com/claws/BH1750
 #include <NTPClient.h>
 #include <Task.h>
 
+
 char ssid[] = "***";  //  your network SSID (name)
 char pass[] = "***";       // your network password
 
@@ -47,11 +48,11 @@ PCA9685 pwmController1, pwmController2;
 
 float pwmFrequency = 1526.0; //supports 24Hz to 1526Hz
 
-uint16_t lux_level[4] = {2, 10, 22, 64}; // освещенность ночью....освещенность днём
+uint16_t lux_level[5] = {2, 10, 22, 64, 128}; // освещенность ночью....освещенность днём
 
 uint16_t threshold = 0;   // порог переключения
 
-uint16_t bright_level[5] = {2, 16, 32, 64, 128}; // яркость ночью....яркость днём 
+uint16_t bright_level[6] = {2, 16, 32, 64, 128, 192}; // яркость ночью....яркость днём (не превышать 256)
 
 uint16_t bright_off = 0;   // выкл
 
@@ -123,7 +124,9 @@ uint16_t GetBright(uint8_t print)
   if ((lux > lux_level[0] + threshold) && (lux < lux_level[1] - threshold)) bright = bright_level[1];
   if ((lux > lux_level[1] + threshold) && (lux < lux_level[2] - threshold)) bright = bright_level[2];
   if ((lux > lux_level[2] + threshold) && (lux < lux_level[3] - threshold)) bright = bright_level[3];
-  if ((lux > lux_level[3] + threshold)) bright = bright_level[4];
+  if ((lux > lux_level[3] + threshold) && (lux < lux_level[4] - threshold)) bright = bright_level[4];
+  if ((lux > lux_level[4] + threshold)) bright = bright_level[5];
+
   if (print == 1) {
     Serial.print("Light: ");
     Serial.print(lux);
@@ -278,8 +281,8 @@ uint8_t  connections[28] = {1,0,4,3,5,6,2, //1
                             15,12,9,10,13,11,14  //4                            
                        };
                        
-if (bright < lux_level[0]) bright = lux_level[0]; //защита
-if (bright > lux_level[3]) bright = lux_level[3]; //защита
+if (bright < lux_level[0]) bright = bright_level[0]; //защита
+if (bright > lux_level[4]) bright = bright_level[5]; //защита
                        
 for (uint8_t i = 0; i < 7; i++) { 
   
